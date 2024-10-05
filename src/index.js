@@ -43,6 +43,12 @@ app.get('/signup', (req, res) => {
     res.render('signup');
 });
 
+// Route to render the login page
+app.get('/login', (req, res) => {
+    res.render('login'); // This will render the login.hbs file located in the templates folder
+});
+
+
 // Handle signup form submission
 app.post('/signup', async (req, res) => {
     try {
@@ -76,6 +82,39 @@ app.post('/signup', async (req, res) => {
         res.status(500).json({ message: "Error during signup." });
     }
 });
+
+// POST Login Route
+app.post('/login', async (req, res) => {
+    try {
+        // Find the user by username
+        const user = await User.findOne({ username: req.body.username }); // Use the User model
+
+        // Check if user exists
+        if (!user) {
+            return res.status(404).json({ message: "User not found. Please sign up." });
+        }
+
+        // Directly compare the plain text password from the request with the one in the database
+        if (req.body.password === user.password) {
+            // Set the session with the user details
+            req.session.user = { username: req.body.username, role: user.role };
+            res.redirect('/home')
+            console.log("User authenticated:", req.session.user); // Log authenticated user session
+        } else {
+            // If password doesn't match
+            res.status(401).json({ message: "Incorrect password." });
+        }
+    } catch (error) {
+        console.error("Login error:", error);
+        res.status(500).json({ message: "Error during login." });
+    }
+});
+
+app.get('/home', (req, res) => {
+    res.render('home', { naming: req.session.user.username });
+});
+
+
 
 // Start server
 app.listen(port, () => {
