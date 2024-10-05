@@ -48,6 +48,9 @@ app.get('/login', (req, res) => {
     res.render('login'); // This will render the login.hbs file located in the templates folder
 });
 
+app.get('/create-admin', (req, res) => {
+    res.render('create-admin'); // This will render the login.hbs file located in the templates folder
+});
 
 // Handle signup form submission
 app.post('/signup', async (req, res) => {
@@ -98,7 +101,12 @@ app.post('/login', async (req, res) => {
         if (req.body.password === user.password) {
             // Set the session with the user details
             req.session.user = { username: req.body.username, role: user.role };
-            res.redirect('/home')
+            if (user.role === 'admin') {
+                res.redirect('/admin-dashboard');  // Redirect to admin dashboard
+            } else {
+                res.redirect('/home');  // Redirect to user home page
+            }
+            // res.redirect('/home')
             console.log("User authenticated:", req.session.user); // Log authenticated user session
         } else {
             // If password doesn't match
@@ -112,6 +120,57 @@ app.post('/login', async (req, res) => {
 
 app.get('/home', (req, res) => {
     res.render('home', { naming: req.session.user.username });
+});
+
+app.get('/admin-dashboard', async (req, res) => {
+    try {
+        // Check if the logged-in user is an admin
+        if (req.session.user && req.session.user.role === 'admin') {
+            // Fetch all users from the database
+            const users = await User.find({}, 'username role'); // Retrieve only the username and role fields
+
+            // Render the admin dashboard and pass the list of users
+            res.render('admin-dashboard', { 
+                naming: req.session.user.username, 
+                users: users // Pass users to the template
+            });
+        } else {
+            // If not admin, redirect to the login page or show an error
+            res.status(403).json({ message: "Access denied. Admins only." });
+        }
+    } catch (error) {
+        console.error("Error fetching users for admin dashboard:", error);
+        res.status(500).json({ message: "Error loading dashboard." });
+    }
+});
+
+// Handle signup form submission
+app.post('/create-admin', async (req, res) => {
+    try {
+        const existingUser = await User.findOne({ username: req.body.username }); // Use the User model
+
+        // Check if the user already exists
+        if (existingUser) {
+            return res.status(409).json({ message: "User already exists. Please login." });
+        }
+
+        // Store the password directly without encryption
+        const data = {
+            username: req.body.username,
+            password: req.body.password,  // No encryption
+            role: 'admin' // Set role to user
+        };
+
+        // Create a new user and save to MongoDB
+        const newUser = new User(data); // Use the User model
+        await newUser.save();
+
+        console.log("Admin created:", newUser); // Log the new user object
+        res.status(201).json({ message: "Admin Signup successful!" });
+    } catch (error) {
+        console.error("Signup error:", error);
+        res.status(500).json({ message: "Error during signup." });
+    }
 });
 
 
