@@ -3,7 +3,7 @@
 const mongoose = require('mongoose');
 
 // Replace with your MongoDB connection string
-const mongoURI = "mongodb://localhost:27017/signup"; 
+const mongoURI = "mongodb://localhost:27017/login-signup"; 
 
 const connectDB = async () => {
   try {
