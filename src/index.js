@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require("express");
 const path = require("path");
 const session = require("express-session");
@@ -29,6 +30,11 @@ app.use(session({
 // Connect to MongoDB
 connectDB();
 
+// Utility function to hash passwords
+function hashPassword(password) {
+    return crypto.createHash('sha256').update(password).digest('hex');
+}
+
 // Define the User schema
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true }, // Ensure the username is unique
@@ -49,7 +55,7 @@ app.get('/login', (req, res) => {
 });
 
 app.get('/create-admin', (req, res) => {
-    res.render('create-admin'); // This will render the login.hbs file located in the templates folder
+    res.render('create-admin'); // This will render the create-admin.hbs file located in the templates folder
 });
 
 // Handle signup form submission
@@ -67,10 +73,11 @@ app.post('/signup', async (req, res) => {
             return res.status(409).json({ message: "User already exists. Please login." });
         }
 
-        // Store the password directly without encryption
+        // Hash the password
+        const hashedPassword = hashPassword(req.body.password); // Hash the password
         const data = {
             username: req.body.username,
-            password: req.body.password,  // No encryption
+            password: hashedPassword,
             role: 'user' // Set role to user
         };
 
@@ -89,27 +96,23 @@ app.post('/signup', async (req, res) => {
 // POST Login Route
 app.post('/login', async (req, res) => {
     try {
-        // Find the user by username
-        const user = await User.findOne({ username: req.body.username }); // Use the User model
+        const user = await User.findOne({ username: req.body.username });
 
-        // Check if user exists
         if (!user) {
             return res.status(404).json({ message: "User not found. Please sign up." });
         }
 
-        // Directly compare the plain text password from the request with the one in the database
-        if (req.body.password === user.password) {
+        const hashedInputPassword = hashPassword(req.body.password);
+        if (hashedInputPassword === user.password) {
             // Set the session with the user details
             req.session.user = { username: req.body.username, role: user.role };
             if (user.role === 'admin') {
-                res.redirect('/admin-dashboard');  // Redirect to admin dashboard
+                res.redirect('/admin-dashboard');
             } else {
-                res.redirect('/home');  // Redirect to user home page
+                res.redirect('/home');
             }
-            // res.redirect('/home')
-            console.log("User authenticated:", req.session.user); // Log authenticated user session
+            console.log("User authenticated:", req.session.user);
         } else {
-            // If password doesn't match
             res.status(401).json({ message: "Incorrect password." });
         }
     } catch (error) {
@@ -118,24 +121,25 @@ app.post('/login', async (req, res) => {
     }
 });
 
+// User home route
 app.get('/home', (req, res) => {
-    res.render('home', { naming: req.session.user.username });
+    if (req.session.user) {
+        res.render('home', { naming: req.session.user.username });
+    } else {
+        res.status(401).json({ message: "Unauthorized access. Please login." });
+    }
 });
 
+// Admin dashboard route
 app.get('/admin-dashboard', async (req, res) => {
     try {
-        // Check if the logged-in user is an admin
         if (req.session.user && req.session.user.role === 'admin') {
-            // Fetch all users from the database
-            const users = await User.find({}, 'username role'); // Retrieve only the username and role fields
-
-            // Render the admin dashboard and pass the list of users
+            const users = await User.find({}, 'username role');
             res.render('admin-dashboard', { 
                 naming: req.session.user.username, 
-                users: users // Pass users to the template
+                users: users 
             });
         } else {
-            // If not admin, redirect to the login page or show an error
             res.status(403).json({ message: "Access denied. Admins only." });
         }
     } catch (error) {
@@ -144,7 +148,7 @@ app.get('/admin-dashboard', async (req, res) => {
     }
 });
 
-// Handle signup form submission
+// Handle admin creation form submission
 app.post('/create-admin', async (req, res) => {
     try {
         const existingUser = await User.findOne({ username: req.body.username }); // Use the User model
@@ -154,14 +158,15 @@ app.post('/create-admin', async (req, res) => {
             return res.status(409).json({ message: "User already exists. Please login." });
         }
 
-        // Store the password directly without encryption
+        // Hash the password
+        const hashedPassword = hashPassword(req.body.password); // Hash the password
         const data = {
             username: req.body.username,
-            password: req.body.password,  // No encryption
-            role: 'admin' // Set role to user
+            password: hashedPassword,
+            role: 'admin' // Set role to admin
         };
 
-        // Create a new user and save to MongoDB
+        // Create a new admin user and save to MongoDB
         const newUser = new User(data); // Use the User model
         await newUser.save();
 
@@ -172,8 +177,6 @@ app.post('/create-admin', async (req, res) => {
         res.status(500).json({ message: "Error during signup." });
     }
 });
-
-
 
 // Start server
 app.listen(port, () => {
