@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="/admin-dashboard.css">
+</head>
+<body>
+    <h1>Welcome, {{naming}} (Admin)</h1>
+    <h2>All Users</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Role</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each users}}
+            <tr>
+                <td>{{this.username}}</td>
+                <td>{{this.role}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+
+    <form action="/logout" method="post">
+        <input class="sub" type="submit" value="Logout">
+    </form>
+</body>
+</html>

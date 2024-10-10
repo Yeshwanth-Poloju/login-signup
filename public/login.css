@@ -1,4 +1,4 @@
-/* signup.css */
+/* login.css */
 
 body {
     font-family: Arial, sans-serif;
@@ -10,7 +10,7 @@ body {
     margin: 0;
 }
 
-.signup-container {
+.login-container {
     background-color: #ffffff;
     border-radius: 8px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
@@ -64,12 +64,28 @@ button:hover {
     background-color: #0056b3;
 }
 
+h3 {
+    margin: 20px 0 10px;
+    font-size: 14px;
+    color: #777;
+}
+
+a {
+    text-decoration: none;
+    color: #007bff;
+    font-weight: bold;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
 .password-container {
     position: relative;
 }
 .toggle-password {
     position: absolute;
-    right: 5px;
+    right: 10px;
     top: 30%;
     transform: translateY(-50%);
     cursor: pointer;
