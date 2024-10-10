@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const express = require("express");
 const path = require("path");
 const session = require("express-session");
@@ -35,12 +36,26 @@ function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
 
+// Handle signup form submission
+// Email transporter setup
+const transporter = nodemailer.createTransport({
+    service: 'Gmail',  // Use your preferred email service
+    auth: {
+        user: 'yeshwanthpoloju@gmail.com',
+        pass: 'chdm uibc fasg ttei' 
+    }
+});
+
 // Define the User schema
 const userSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true }, // Ensure the username is unique
+    username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: String, default: 'user' } // Default role is user
+    email: { type: String, required: true },
+    role: { type: String, default: 'user' },
+    isVerified: { type: Boolean, default: false },  // Email verification status
+    verificationToken: { type: String }             // Token for verification
 });
+
 
 const User = mongoose.model('User', userSchema);
 
@@ -58,40 +73,57 @@ app.get('/create-admin', (req, res) => {
     res.render('create-admin'); // This will render the create-admin.hbs file located in the templates folder
 });
 
+
 // Handle signup form submission
 app.post('/signup', async (req, res) => {
     try {
-        const existingUser = await User.findOne({ username: req.body.username }); // Use the User model
+        const existingUser = await User.findOne({ username: req.body.username });
 
-        // Check if the username is 'admin'
         if (req.body.username === 'admin') {
             return res.status(400).json({ message: "Admin account already exists. Please login." });
         }
 
-        // Check if the user already exists
         if (existingUser) {
             return res.status(409).json({ message: "User already exists. Please login." });
         }
 
-        // Hash the password
-        const hashedPassword = hashPassword(req.body.password); // Hash the password
-        const data = {
+        const hashedPassword = hashPassword(req.body.password);
+        const verificationToken = crypto.randomBytes(32).toString('hex');  // Create a random token
+
+        const newUser = new User({
             username: req.body.username,
             password: hashedPassword,
-            role: 'user' // Set role to user
-        };
+            email: req.body.email,
+            role: 'user',
+            verificationToken,  // Store the token
+            isVerified: false   // Not verified yet
+        });
 
-        // Create a new user and save to MongoDB
-        const newUser = new User(data); // Use the User model
         await newUser.save();
 
-        console.log("User created:", newUser); // Log the new user object
-        res.status(201).json({ message: "Signup successful!" });
+        // Send verification email
+        const verificationLink = `http://localhost:${port}/verify-email?token=${verificationToken}`;
+        const mailOptions = {
+            from: 'yeshwanthpoloju@gmail.com',
+            to: req.body.email,
+            subject: 'Verify your email',
+            text: `Please verify your email by clicking the link: ${verificationLink}`
+        };
+
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.error("mail sending error", error);
+                return res.status(500).json({ message: 'Error sending email.' });
+            }
+            res.status(201).json({ message: 'Signup successful! Please verify your email.' });
+        });
+
     } catch (error) {
         console.error("Signup error:", error);
         res.status(500).json({ message: "Error during signup." });
     }
 });
+
 
 // POST Login Route
 app.post('/login', async (req, res) => {
@@ -102,16 +134,18 @@ app.post('/login', async (req, res) => {
             return res.status(404).json({ message: "User not found. Please sign up." });
         }
 
+        if (!user.isVerified) {
+            return res.status(401).json({ message: "Please verify your email before logging in." });
+        }
+
         const hashedInputPassword = hashPassword(req.body.password);
         if (hashedInputPassword === user.password) {
-            // Set the session with the user details
             req.session.user = { username: req.body.username, role: user.role };
             if (user.role === 'admin') {
                 res.redirect('/admin-dashboard');
             } else {
                 res.redirect('/home');
             }
-            console.log("User authenticated:", req.session.user);
         } else {
             res.status(401).json({ message: "Incorrect password." });
         }
@@ -120,6 +154,28 @@ app.post('/login', async (req, res) => {
         res.status(500).json({ message: "Error during login." });
     }
 });
+
+// Email verification route
+app.get('/verify-email', async (req, res) => {
+    try {
+        const token = req.query.token;
+        const user = await User.findOne({ verificationToken: token });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired token.' });
+        }
+
+        user.isVerified = true;
+        user.verificationToken = null;  // Clear the token after verification
+        await user.save();
+
+        res.status(200).json({ message: 'Email verified successfully! You can now login.' });
+    } catch (error) {
+        console.error('Email verification error:', error);
+        res.status(500).json({ message: 'Error verifying email.' });
+    }
+});
+
 
 // User home route
 app.get('/home', (req, res) => {
